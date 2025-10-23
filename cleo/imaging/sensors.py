@@ -163,9 +163,9 @@ class NullExcitation(ExcitationModel):
 
 @define(eq=False)
 class LightExcitation(ExcitationModel):
-    """Models light-dependent excitation (not implemented yet)"""
+    """Models light-dependent excitation"""
 
-    model: str = field(default="exc_factor = some_function(Irr_pre) : 1", init=False)
+    model: str = field(default="bottom + ((Fmax - bottom) * x**n)/(ec50**n + x**n) * exp(-k * x) : 1", init=False)
 
 
 @define(eq=False)
@@ -188,23 +188,30 @@ class GECI(Sensor):
 
     fluor_model: str = field(
         default="""
-            dFF_baseline = 1 / (1 + (K_d / Ca_rest) ** n_H) : 1
-            dFF = exc_factor * rho_rel * dFF_max  * (
-                1 / (1 + (K_d / CaB_active) ** n_H)
-                - dFF_baseline
-            ) : 1
-            rho_rel : 1
+            dF_b = bottom + ((Fmax - bottom) * x**n)/(ec50**n + x**n) * exp(-k * x) : 1
+            dF_w = baseline + ((A1 * (1/(w * sigma1 * (2 * pi)**0.5)) * exp(-(log(w) - mu1)**2/(2 * sigma1**2)))) + ((A2 * (1/(w * sigma2 * (2 * pi)**0.5)) * exp(-(log(w) - mu2)**2/(2 * sigma2**2)))) : 1
+            dFF = dF_b * dF_w : 1
         """,
         init=False,
     )
     """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
-    K_d: Quantity = field(kw_only=True)
+    k: Quantity = field(kw_only=True)
     """indicator dissociation constant (binding affinity) (molar)"""
-    n_H: float = field(kw_only=True)
+    x: float = field(kw_only=True)
     """Hill coefficient for conversion from Ca2+ to ΔF/F"""
-    dFF_max: float = field(kw_only=True)
+    Fmax: float = field(kw_only=True)
     """amplitude of Hill equation for conversion from Ca2+ to ΔF/F,
     Fmax/F0. May be approximated from 'dynamic range' in literature Fmax/Fmin"""
+    bottom: float = field(kw_only=True)
+    """baseline of Hill equation for conversion from Ca2+ to ΔF/F,
+    Fmax/F0."""
+    ec50: float = field(kw_only=True)
+    n: float = field(kw_only=True)
+    w: Quantity = field(kw_only=True)
+    A1: Quantity = field(kw_only=True)
+    sigma1: Quantity = field(kw_only=True)
+    A2: Quantity = field(kw_only=True)
+    sigma2: Quantity = field(kw_only=True)
 
     def get_state(self) -> dict[NeuronGroup, np.ndarray]:
         return {ng_name: syn.dFF for ng_name, syn in self.synapses.items()}
@@ -220,10 +227,27 @@ class GECI(Sensor):
         )
         self.on_pre = self.cal_model.on_pre
 
-    def init_syn_vars(self, syn: Synapses) -> None:
-        for model in [self.cal_model, self.bind_act_model, self.exc_model]:
-            if hasattr(model, "init_syn_vars"):
-                model.init_syn_vars(syn)
+    def get_params_dict(self):
+        import json
+        with open("hills_decay_function.json", "r") as f:
+            Light_Intensity_Fluorescence_dict = json.load(f)
+
+        with open("lognormal_fit_results.json", "r") as f:
+            wavelengthDict = json.load(f)
+        return Light_Intensity_Fluorescence_dict, wavelengthDict
+
+    def simulate(self, geci: str, brightness: float, wavelength: float) -> float:
+        light_dict, wave_dict = self.get_params_dict()
+        params_b = light_dict[geci]
+        params_w = wave_dict[geci]
+        params = {**params_b, **params_w}
+        ng = NeuronGroup(1, self.fluor_model, method="euler", namespace=params)
+        return float(ng.dFF[0])
+
+    # def init_syn_vars(self, syn: Synapses) -> None:
+    #     for model in [self.cal_model, self.bind_act_model, self.exc_model]:
+    #         if hasattr(model, "init_syn_vars"):
+    #             model.init_syn_vars(syn)
 
     @property
     def params(self) -> dict:
@@ -246,8 +270,9 @@ class GECI(Sensor):
 
 class LightDependentGECI(GECI, LightDependent):
     """Light-dependent calcium indicator (not yet implemented)"""
+    model: str = field(default="(bottom + ((Fmax - bottom) * x**n)/(ec50**n + x**n) * exp(-k * x))"
+    " * (baseline + ((A1 * (1/(w * sigma1 * (2 * pi)**0.5)) * exp(-(log(w) - mu1)**2/(2 * sigma1**2)))) + ((A2 * (1/(w * sigma2 * (2 * pi)**0.5)) * exp(-(log(w) - mu2)**2/(2 * sigma2**2))))) : 1", init=False)
 
-    pass
 
 
 def geci(
