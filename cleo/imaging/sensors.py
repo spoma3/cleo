@@ -6,6 +6,7 @@ from brian2 import NeuronGroup, Quantity, Synapses, nmolar, np, second, umolar
 from cleo.base import SynapseDevice
 from cleo.light import LightDependent
 from cleo.utilities import brian_safe_name
+import Dictionaries
 
 
 @define(eq=False)
