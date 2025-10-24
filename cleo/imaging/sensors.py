@@ -6,8 +6,7 @@ from brian2 import NeuronGroup, Quantity, Synapses, nmolar, np, second, umolar
 from cleo.base import SynapseDevice
 from cleo.light import LightDependent
 from cleo.utilities import brian_safe_name
-import Dictionaries
-
+from Dictionaries import Light_Intensity_Dict, Wavelength_Dict
 
 @define(eq=False)
 class Sensor(SynapseDevice):
@@ -164,9 +163,9 @@ class NullExcitation(ExcitationModel):
 
 @define(eq=False)
 class LightExcitation(ExcitationModel):
-    """Models light-dependent excitation (not implemented yet)"""
+    """Models light-dependent excitation"""
 
-    model: str = field(default="exc_factor = some_function(Irr_pre) : 1", init=False)
+    model: str = field(default="bottom + ((Fmax - bottom) * x**n)/(ec50**n + x**n) * exp(-k * x) : 1", init=False)
 
 
 @define(eq=False)
@@ -189,23 +188,41 @@ class GECI(Sensor):
 
     fluor_model: str = field(
         default="""
-            dFF_baseline = 1 / (1 + (K_d / Ca_rest) ** n_H) : 1
-            dFF = exc_factor * rho_rel * dFF_max  * (
-                1 / (1 + (K_d / CaB_active) ** n_H)
-                - dFF_baseline
-            ) : 1
-            rho_rel : 1
+            dF_b = bottom + ((Fmax - bottom) * x**n)/(ec50**n + x**n) * exp(-k * x) : 1
+            dF_w = baseline + ((A1 * (1/(w * sigma1 * (2 * pi)**0.5)) * exp(-(log(w) - mu1)**2/(2 * sigma1**2)))) + ((A2 * (1/(w * sigma2 * (2 * pi)**0.5)) * exp(-(log(w) - mu2)**2/(2 * sigma2**2)))) : 1
+            dFF = dF_b * dF_w : 1
         """,
         init=False,
     )
     """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
-    K_d: Quantity = field(kw_only=True)
-    """indicator dissociation constant (binding affinity) (molar)"""
-    n_H: float = field(kw_only=True)
-    """Hill coefficient for conversion from Ca2+ to ΔF/F"""
-    dFF_max: float = field(kw_only=True)
+    k: Quantity = field(kw_only=True)
+    """the decay parameter of the model how quickly does normalized fluorescence decay as the brightness level increases past its maximum saturation level."""
+    x: float = field(kw_only=True)
+    """the brightness of the function for the hills exponential decay equation."""
+    Fmax: float = field(kw_only=True)
     """amplitude of Hill equation for conversion from Ca2+ to ΔF/F,
     Fmax/F0. May be approximated from 'dynamic range' in literature Fmax/Fmin"""
+    bottom: float = field(kw_only=True)
+    """baseline of Hill equation for conversion from Ca2+ to ΔF/F,
+    Fmax/F0."""
+    ec50: float = field(kw_only=True)
+    """the value of the brightness where the response is halfway between the bottom and Fmax"""
+    n: float = field(kw_only=True)
+    """the steepness of the transition with higher values meaning a more sudden
+      more switch like response and a lower value meaning a smoother more gradual response function."""
+    #All of these values are for the wavelength function and can be removed they are only kept just to have
+    baseline: float = field(kw_only=True)
+    """baseline of the log normal equation when the wavelength is 0."""
+    w: Quantity = field(kw_only=True)
+    """the wavelength of the function for the log normal equation."""
+    A1: Quantity = field(kw_only=True)
+    """the amplitude of the first log normal distribution highlighting the maximum height of that first log normal function."""
+    sigma1: Quantity = field(kw_only=True)
+    """the standard distribution or the width of the first log normal distribution highlighting how wide the curve is."""
+    A2: Quantity = field(kw_only=True)
+    """the amplitude of the second log normal distribution highlighting the maximum height of that second log normal function."""
+    sigma2: Quantity = field(kw_only=True)
+    """the standard distribution or the width of the second log normal distribution highlighting how wide the curve is."""
 
     def get_state(self) -> dict[NeuronGroup, np.ndarray]:
         return {ng_name: syn.dFF for ng_name, syn in self.synapses.items()}
@@ -221,10 +238,23 @@ class GECI(Sensor):
         )
         self.on_pre = self.cal_model.on_pre
 
-    def init_syn_vars(self, syn: Synapses) -> None:
-        for model in [self.cal_model, self.bind_act_model, self.exc_model]:
-            if hasattr(model, "init_syn_vars"):
-                model.init_syn_vars(syn)
+    def get_params_dict(self):
+        self.Light_Intensity_Fluorescence_dict = Light_Intensity_Dict
+        self.Wavlength_dict = Wavelength_Dict
+        return self.Light_Intensity_Fluorescence_dict, self.WavelengthDict
+
+    def simulate(self, geci: str, brightness: float, wavelength: float) -> float:
+        light_dict, wave_dict = self.get_params_dict()
+        params_b = light_dict[geci]
+        params_w = wave_dict[geci]
+        params = {**params_b, **params_w}
+        ng = NeuronGroup(1, self.fluor_model, method="euler", namespace=params)
+        return float(ng.dFF[0])
+
+    # def init_syn_vars(self, syn: Synapses) -> None:
+    #     for model in [self.cal_model, self.bind_act_model, self.exc_model]:
+    #         if hasattr(model, "init_syn_vars"):
+    #             model.init_syn_vars(syn)
 
     @property
     def params(self) -> dict:
@@ -247,8 +277,9 @@ class GECI(Sensor):
 
 class LightDependentGECI(GECI, LightDependent):
     """Light-dependent calcium indicator (not yet implemented)"""
+    model: str = field(default="(bottom + ((Fmax - bottom) * x**n)/(ec50**n + x**n) * exp(-k * x))"
+    " * (baseline + ((A1 * (1/(w * sigma1 * (2 * pi)**0.5)) * exp(-(log(w) - mu1)**2/(2 * sigma1**2)))) + ((A2 * (1/(w * sigma2 * (2 * pi)**0.5)) * exp(-(log(w) - mu2)**2/(2 * sigma2**2))))) : 1", init=False)
 
-    pass
 
 
 def geci(
