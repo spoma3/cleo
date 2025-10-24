@@ -212,7 +212,8 @@ class GECI(Sensor):
     sigma1: Quantity = field(kw_only=True)
     A2: Quantity = field(kw_only=True)
     sigma2: Quantity = field(kw_only=True)
-
+    baseline: Quantity = field(kw_only=True)
+    
     def get_state(self) -> dict[NeuronGroup, np.ndarray]:
         return {ng_name: syn.dFF for ng_name, syn in self.synapses.items()}
 
