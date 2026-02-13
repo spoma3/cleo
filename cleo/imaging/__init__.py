@@ -1,26 +1,24 @@
-"""Contains Scope and sensors for two-photon microscopy"""
-from cleo.imaging.scope import Scope, target_neurons_in_plane
-from cleo.imaging.sensors import (
-    GECI,
-    CalBindingActivationModel,
-    CalciumModel,
-    DoubExpCalBindingActivation,
-    DynamicCalcium,
-    ExcitationModel,
-    LightExcitation,
-    NullBindingActivation,
-    NullExcitation,
-    PreexistingCalcium,
-    Sensor,
-    gcamp3,
-    gcamp6_rs06,
-    gcamp6_rs09,
-    gcamp6f,
-    gcamp6s,
-    geci,
-    jgcamp7b,
-    jgcamp7c,
-    jgcamp7f,
-    jgcamp7s,
-    ogb_1,
+"""Contains core classes and functions for the Cleo package."""
+from __future__ import annotations
+
+# auto-import submodules
+import cleo.coords
+import cleo.ephys
+import cleo.imaging
+import cleo.ioproc
+import cleo.opto
+import cleo.recorders
+import cleo.registry
+import cleo.stimulators
+import cleo.utilities
+import cleo.viz
+from cleo.base import (
+    CLSimulator,
+    InterfaceDevice,
+    IOProcessor,
+    NeoExportable,
+    Recorder,
+    Stimulator,
+    SynapseDevice,
 )
+from cleo.ioproc import LatencyIOProcessor
