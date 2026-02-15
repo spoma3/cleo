@@ -6,8 +6,6 @@ from brian2 import NeuronGroup, Quantity, Synapses, nmolar, np, second, umolar, 
 from cleo.base import SynapseDevice
 from cleo.light import LightDependent
 from cleo.utilities import brian_safe_name
-from Dictionaries import Light_Intensity_Dict, Wavelength_Dict, Dissociation_Dict
-from DoubExpCalBindingActivationParameters_Dict import DoubExpCalBindingActivation_Dict
 
 @define(eq=False)
 class Sensor(SynapseDevice):
@@ -152,9 +150,7 @@ class DoubExpCalBindingActivation(CalBindingActivationModel):
 class ExcitationModel:
     """Defines ``exc_factor``"""
 
-    model: str
-    # model: str = field(default="exc_factor = 1 : 1", init=False)
-
+    model: str = field(default="exc_factor = 1 : 1", init=False)
 
 @define(eq=False)
 class NullExcitation(ExcitationModel):
@@ -169,12 +165,14 @@ class LightExcitation(ExcitationModel):
 
     # model: str = field(default="exc_factor = some_function(Irr_pre) : 1", init=False)
     """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
-    eqs = '''
+
+    #change to default() instead of eqs
+    model: str = field(default="""
     phi : 1/meter**2/second (shared)
     epsilon : 1 (shared)
-    exc_factor = baseline + (A * ((phi * epsilon)**n)/(ec50**n + (phi * epsilon)**n)) * exp(-k * phi * (1/meter**2/second) * epsilon) : 1
-    '''
-    model: str = field(default=eqs, init=False)
+    exc_factor = baseline + (A * ((phi * epsilon)**n)/(ec50**n + (phi * epsilon)**n))
+                        * exp(-k * phi * (1/meter**2/second) * epsilon) : 1
+    """, init=False)
 
 @define(eq=False)
 class GECI(Sensor):
@@ -188,7 +186,6 @@ class GECI(Sensor):
     to data, rather than to biophysical processes before the data.
     """
 
-    sensor: Sensor = Sensor
     cal_model: CalciumModel = field(kw_only=True)
     bind_act_model: CalBindingActivationModel = field(kw_only=True)
     exc_model: ExcitationModel = field(kw_only=True)
@@ -205,13 +202,11 @@ class GECI(Sensor):
     location: str = field(default="cytoplasm", init=False)
     fluor_model: str = field(
         default="""
-            dFF_baseline = 1 / (1 + (K_d / Ca_rest) ** n_H) : 1
-            phi : 1/meter**2/second (shared)
-            epsilon : 1 (shared)
-            dFF = phi * (1/(1/meter**2/second)) * epsilon * rho_rel * dFF_max  * (1 / (1 + (K_d / CaB_active) ** n_H) - dFF_baseline) : 1
-            rho_rel : 1
-        """,
-        init=False,
+        dFF_baseline = 1/(1 + (K_d / Ca_rest)**n_H) : 1
+        dFF = exc_factor * rho_rel * dFF_max * (
+        1/ (1 + (K_d / CaB_active) ** n_H) - dFF_baseline) : 1
+        rho_rel : 1
+    """, init=False
     )
 
     def get_state(self) -> dict[NeuronGroup, np.ndarray]:
@@ -337,8 +332,6 @@ def _create_geci_fn(
     gcamp6s_dFF_1AP_dana2019 = 0.133
     gcamp6s_snr_1AP_dana2019 = 4.4
     sigma_gcamp6s = gcamp6s_dFF_1AP_dana2019 / gcamp6s_snr_1AP_dana2019
-    print(f"sigma_noise_rel is: {sigma_noise_rel}")
-    print(f"sigma_gcamp6s is: {sigma_gcamp6s}")
     sigma_noise = sigma_noise_rel * sigma_gcamp6s
     if dFF_1AP_rel is not None:
         dFF_1AP = dFF_1AP_rel * gcamp6s_dFF_1AP_dana2019
@@ -453,43 +446,3 @@ for col in column_names:
         val2 = float(vals[1])
         spect.append((val1, val2))
     spectrum = spect
-    print(f"spectrum is: {spectrum}")
-# _create_geci_fn("GCaMP6f", 290, 2.7, 25.2, 1.24, 0.735, 76.1251, 0.8535, 98.6173)
-# _create_geci_fn("GCaMP6s", 147, 2.45, 27.2, 1, 1, 54.6943, 0.4526, 68.5461)
-# noise, dFF for GCaMP3 from Dana 2019, since not in Zhang 2023
-
-# _create_geci_fn(
-#     "GCaMP3", 287, 2.52, 12, (3.9 / 2.1) / (13.3 / 4.4), 3.9 / 13.3, 0.05, 1, 1
-# )
-
-# from NAOMi, but
-# don't have double exponential convolution parameters for these:
-
-# _create_geci_fn(
-#     "OGB-1",
-#     250,
-#     1,
-#     14,
-#     1,
-#     extra_doc="*Don't know sigma_noise. Default is the GCaMP6s value.*",
-# )
-# _create_geci_fn(
-#     "GCaMP6-RS09",
-#     520,
-#     3.2,
-#     25,
-#     1,
-#     extra_doc="*Don't know sigma_noise. Default is the GCaMP6s value.*",
-# )
-# _create_geci_fn(
-#     "GCaMP6-RS06",
-#     320,
-#     3,
-#     15,
-#     1,
-#     extra_doc="*Don't know sigma_noise. Default is the GCaMP6s value.*",
-# )
-# _create_geci_fn("jGCaMP7f", 174, 2.3, 30.2, 0.72, 1.71)
-# _create_geci_fn("jGCaMP7s", 68, 2.49, 40.4, 0.33, 4.96)
-# _create_geci_fn("jGCaMP7b", 82, 3.06, 22.1, 0.25, 4.64)
-# _create_geci_fn("jGCaMP7c", 298, 2.44, 145.6, 0.39, 1.85)
