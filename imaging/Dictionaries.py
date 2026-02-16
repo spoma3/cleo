@@ -76,3 +76,5 @@ Dissociation_Dict = {
     ('jgcamp8s') : {"K_d" : 46},
     ('xgcampgf') : {"K_d" : 170},
 }
+
+# https://static-content.springer.com/esm/art%3A10.1038%2Fsrep38276/MediaObjects/41598_2016_BFsrep38276_MOESM1_ESM.pdf

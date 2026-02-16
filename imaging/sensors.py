@@ -174,6 +174,12 @@ class LightExcitation(ExcitationModel):
                         * exp(-k * phi * (1/meter**2/second) * epsilon) : 1
     """, init=False)
 
+    baseline: float = field(kw_only=True)
+    A: float = field(kw_only=True)
+    n: float = field(kw_only=True)
+    ec50: float = field(kw_only=True)
+    k: float = field(kw_only=True)
+
 @define(eq=False)
 class GECI(Sensor):
     """GECI model based on Song et al., 2021, with interchangeable components.
@@ -250,14 +256,7 @@ class LightDependentGECI(GECI, LightDependent):
     """Light-dependent calcium indicator (not yet implemented)"""
     # """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
     # geci()
-
-    def LightDependentParams(GECI_str) -> dict:
-        import pandas as pd
-        df = pd.read_csv('imaging/Light_Intensity_Params/Temp Standard Params.csv')
-        values = df[GECI_str].to_list()
-        values = np.array(values[:5]).astype(float)
-        values = list(values)
-        return {'A' : values[1], 'baseline' : values[0], 'k' : values[4], 'n' : values[3], 'ec50' : values[2]}
+    geci(True, False, False, **row)
 
 def geci(
     light_dependent: bool, doub_exp_conv: bool, pre_existing_cal: bool, **kwparams
@@ -376,41 +375,16 @@ def _create_geci_fn(
         tau_on = second / t_on if t_on else None
         tau_off = second / t_off if t_off else None
 
-        #here is my idea for getting the spectrum data as an input for _create_geci_fn calls
-        import pandas as pd
-        df = pd.read_csv('imaging/Light_Intensity_Params/Temp Standard Params.csv')
-        values = df[name].to_list()
-        spectrum = values[-1]
-        spectrum_arr = spectrum.split('), ')
-        spect = []
-        for arr in spectrum_arr:
-            vals = arr.split(',')
-            vals[0] = vals[0].replace('(', '')
-            val1 = float(vals[0])
-            vals[1] = vals[1].replace(')', '')
-            val2 = float(vals[1])
-            spect.append((val1, val2))
-        spectrum = spect
-
         return geci(
             light_dependent,
             doub_exp_conv,
             pre_existing_cal,
-            K_d=K_d,
-            n_H=n_H,
-            dFF_max=dFF_max,
-            sigma_noise=sigma_noise,
-            dFF_1AP=dFF_1AP,
-            A=A,
-            tau_on=tau_on,
-            tau_off=tau_off,
-            Ca_rest=Ca_rest,
             kappa_S=kappa_S,
             gamma=gamma,
             B_T=B_T,
             dCa_T=dCa_T,
             name=name,
-            spectrum=spectrum
+            spectrum = spectrum
             **kwparams,
         )
 
@@ -427,22 +401,22 @@ df = pd.read_csv('imaging/Light_Intensity_Params/Temp Standard Params.csv')
 #                  'jgcamp7c', 'jgcamp7f', 'jgcamp7s', 'jgcamp8f', 'jgcamp8m', 'jgcamp8s']
 column_names = ['jgcamp3', 'jgcamp6f', 'jgcamp6s', 'jgcamp7b',
                  'jgcamp7c', 'jgcamp7f', 'jgcamp7s']
-for col in column_names:
-    values = df[col].to_list()
-    spectrum = values[-1]
-    values = np.array(values[:-1]).astype(float)
-    values = list(values)
-    if (values[10] == -1 and values[11] == -1 and values[12] == -1):
-        _create_geci_fn(col, values[5], values[6], values[7], values[8], values[9])
-    else:
-        _create_geci_fn(col, values[5], values[6], values[7], values[8], values[9], values[10], values[11], values[12])
+for row in df:
+    name = row[0]
+    #Since the dataframe has all values as strings I need to turn the collected values into floats
+    row = np.array(row[:-1]).astype(float)
+    row = list(row)
+    #Since spectrum is a tuple it can't fit into the row since it is now a list of floats
+    spectrum = row[-1]
+    spectrum = spectrum.replace('(', '')
     spectrum_arr = spectrum.split('), ')
     spect = []
     for arr in spectrum_arr:
         vals = arr.split(',')
-        vals[0] = vals[0].replace('(', '')
         val1 = float(vals[0])
-        vals[1] = vals[1].replace(')', '')
+        vals[1].replace(')', '')
         val2 = float(vals[1])
         spect.append((val1, val2))
     spectrum = spect
+    #Create Geci function call
+    _create_geci_fn(name, spectrum, **row)
