@@ -256,7 +256,13 @@ class LightDependentGECI(GECI, LightDependent):
     """Light-dependent calcium indicator (not yet implemented)"""
     # """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
     # geci()
-    geci(True, False, False, **row)
+    model = """
+    exc_factor = baseline + (A * ((phi * epsilon)**n)/(ec50**n + (phi * epsilon)**n))
+                        * exp(-k * phi * (1/meter**2/second) * epsilon) : 1
+    phi : 1/meter**2/second (shared)
+    epsilon : 1 (shared)
+    """
+
 
 def geci(
     light_dependent: bool, doub_exp_conv: bool, pre_existing_cal: bool, **kwparams
@@ -384,7 +390,6 @@ def _create_geci_fn(
             B_T=B_T,
             dCa_T=dCa_T,
             name=name,
-            spectrum = spectrum
             **kwparams,
         )
 
@@ -392,31 +397,9 @@ def _create_geci_fn(
 
     globals()[brian_safe_name(name.lower())] = geci_fn
 
-
-# from NAOMi:
-#                      K_d, n_H, dFF_max, sigma_noise_rel, dFF_1AP_rel, ca_amp, t_on, t_off
 import pandas as pd
 df = pd.read_csv('imaging/Light_Intensity_Params/Temp Standard Params.csv')
-# column_names = ['jgcamp2', 'jgcamp6f', 'jgcamp6s', 'jgcamp7b',
-#                  'jgcamp7c', 'jgcamp7f', 'jgcamp7s', 'jgcamp8f', 'jgcamp8m', 'jgcamp8s']
 column_names = ['jgcamp3', 'jgcamp6f', 'jgcamp6s', 'jgcamp7b',
                  'jgcamp7c', 'jgcamp7f', 'jgcamp7s']
-for row in df:
-    name = row[0]
-    #Since the dataframe has all values as strings I need to turn the collected values into floats
-    row = np.array(row[:-1]).astype(float)
-    row = list(row)
-    #Since spectrum is a tuple it can't fit into the row since it is now a list of floats
-    spectrum = row[-1]
-    spectrum = spectrum.replace('(', '')
-    spectrum_arr = spectrum.split('), ')
-    spect = []
-    for arr in spectrum_arr:
-        vals = arr.split(',')
-        val1 = float(vals[0])
-        vals[1].replace(')', '')
-        val2 = float(vals[1])
-        spect.append((val1, val2))
-    spectrum = spect
-    #Create Geci function call
-    _create_geci_fn(name, spectrum, **row)
+for index, row in df.iterrows():
+    _create_geci_fn(row[0], **row[6:-2])
