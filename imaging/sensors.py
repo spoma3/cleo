@@ -256,12 +256,12 @@ class LightDependentGECI(GECI, LightDependent):
     """Light-dependent calcium indicator (not yet implemented)"""
     # """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
     # geci()
-    model = """
+    model: str = field(default = """
     exc_factor = baseline + (A * ((phi * epsilon)**n)/(ec50**n + (phi * epsilon)**n))
                         * exp(-k * phi * (1/meter**2/second) * epsilon) : 1
     phi : 1/meter**2/second (shared)
     epsilon : 1 (shared)
-    """
+    """)
 
 
 def geci(
