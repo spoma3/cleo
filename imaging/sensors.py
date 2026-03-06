@@ -398,8 +398,8 @@ def _create_geci_fn(
     globals()[brian_safe_name(name.lower())] = geci_fn
 
 import pandas as pd
-df = pd.read_csv('imaging/Light_Intensity_Params/Temp Standard Params.csv')
+df = pd.read_csv('imaging/Light_Intensity_Params/gecis.csv')
 column_names = ['jgcamp3', 'jgcamp6f', 'jgcamp6s', 'jgcamp7b',
-                 'jgcamp7c', 'jgcamp7f', 'jgcamp7s']
+                 'jgcamp7c', 'jgcamp7f', 'jgcamp7s', 'gcamp6f-rs06', 'gcamp6f-rs09', 'ogb-1']
 for index, row in df.iterrows():
-    _create_geci_fn(row[0], **row[6:-2])
+    _create_geci_fn(row.iloc[0], **row.iloc[6:-2])
