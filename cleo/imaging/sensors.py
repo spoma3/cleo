@@ -11,6 +11,8 @@ from cleo.utilities import brian_safe_name
 class Sensor(SynapseDevice):
     """Base class for sensors"""
 
+    name: str = field(default="sensor", kw_only=True)
+    """name of the sensor device"""
     sigma_noise: float = field(kw_only=True)
     """standard deviation of Gaussian noise in ΔF/F measurement"""
     dFF_1AP: float = field(kw_only=True)
@@ -73,15 +75,15 @@ class DynamicCalcium(CalciumModel):
     )
     """from eq 8 in Lütke et al., 2013"""
 
-    Ca_rest: Quantity = field(kw_only=True)
+    Ca_rest: Quantity = field(default=50 * nmolar, kw_only=True)
     """resting Ca2+ concentration (molar)"""
-    gamma: Quantity = field(kw_only=True)
+    gamma: Quantity = field(default=292.3 / second, kw_only=True)
     """clearance/extrusion rate (1/sec)"""
-    B_T: Quantity = field(kw_only=True)
+    B_T: Quantity = field(default=200 * umolar, kw_only=True)
     """total indicator (buffer) concentration (molar)"""
-    kappa_S: float = field(kw_only=True)
+    kappa_S: float = field(default=110.0, kw_only=True)
     """Ca2+ binding ratio of the endogenous buffer"""
-    dCa_T: Quantity = field(kw_only=True)
+    dCa_T: Quantity = field(default=7.6 * umolar, kw_only=True)
     """total Ca2+ concentration increase per spike (molar)"""
 
     def init_syn_vars(self, syn: Synapses) -> None:
@@ -93,7 +95,6 @@ class CalBindingActivationModel:
     """Base class for modeling calcium binding/activation"""
 
     model: str
-
 
 
 @define(eq=False)
@@ -168,11 +169,11 @@ class LightExcitation(ExcitationModel):
                         * exp(-k * Irr * soma_radius**2 * pi * (mwatt)) * (1/Hz)) : 1
     """, init=False)
 
-    baseline: float = field(kw_only=True)
-    A: float = field(kw_only=True)
-    n: float = field(kw_only=True)
-    ec50: float = field(kw_only=True)
-    k: float = field(kw_only=True)
+    baseline: float = field(default=1.0, kw_only=True)
+    A: float = field(default=1.0, kw_only=True)
+    n: float = field(default=1.0, kw_only=True)
+    ec50: float = field(default=1.0, kw_only=True)
+    k: float = field(default=0.0, kw_only=True)
 
 @define(eq=False)
 class GECI(Sensor):
@@ -186,6 +187,7 @@ class GECI(Sensor):
     to data, rather than to biophysical processes before the data.
     """
 
+    name: str = field(default="GECI", kw_only=True)
     cal_model: CalciumModel = field(kw_only=True)
     bind_act_model: CalBindingActivationModel = field(kw_only=True)
     exc_model: ExcitationModel = field(kw_only=True)
@@ -251,9 +253,15 @@ class GECI(Sensor):
 
 @define(eq=False, slots=False)
 class LightDependentGECI(GECI, LightDependent):
-    """Light-dependent calcium indicator (not yet implemented)"""
-    """Uses a Hill equation to convert from Ca2+ to ΔF/F, as in Song et al., 2021"""
-    pass
+    """Light-dependent calcium indicator"""
+
+    name: str = field(default="LightDependentGECI", kw_only=True)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+        # Ensure LightDependent mixin initialization runs to set spectrum defaults
+        if hasattr(LightDependent, "__post_init__"):
+            LightDependent.__post_init__(self)
 
 def geci(
     light_dependent: bool, doub_exp_conv: bool, pre_existing_cal: bool, **kwparams
@@ -402,8 +410,6 @@ def _create_geci_fn(
             **extra_kwparams,
         )
 
-    # geci_fn.spectrum = spectrum
-
     geci_fn.__doc__ += "\n\n" + (" " * 8) + extra_doc
 
     globals()[brian_safe_name(name.lower())] = geci_fn
@@ -448,6 +454,7 @@ def load_geci_dataframe(name: str):
             return gcamp
     except Exception as e:
         print(f"Failed to register sensors from csv: {e}")
+
 import matplotlib.pyplot as plt
 def Plot_Generator(time_history, dFF_history, count):
     for i in range(len(dFF_history[0])):
